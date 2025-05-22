@@ -75,6 +75,7 @@ if archivo:
     fig, ax = plt.subplots()
     ax.scatter(range(len(df_filtrado)), df_filtrado['CANTIDAD'], alpha=0.5, label="Reales", color="blue")
     ax.scatter(range(len(df_filtrado)), df_filtrado['PREDICCIONES'], alpha=0.5, label="Predichos", color="red")
+    ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2)
     ax.set_title("Predicción vs Real")
     ax.legend()
     st.pyplot(fig)
