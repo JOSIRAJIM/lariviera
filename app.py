@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import cross_val_score
-
 from procesamiento import cargar_y_preprocesar_datos
 from actualizador_modelo import entrenar_o_cargar_modelo
 
@@ -33,10 +33,11 @@ if archivo:
     original = pd.read_excel(archivo)
     df['NOMBRETIENDA'] = original['NOMBRETIENDA']
     df['NOMBREARTICULO_VENTA'] = original['NOMBREARTICULO_VENTA']
+    
+    if 'FECHA' in original.columns:
+        df['FECHA'] = pd.to_datetime(original['FECHA'])
 
-    # -----------------------------
-    # 🎛️ FILTROS EN LA BARRA LATERAL
-    # -----------------------------
+    # 📍 FILTROS LATERALES
     st.sidebar.header("🔍 Filtros")
 
     tiendas = sorted(df['NOMBRETIENDA'].dropna().unique())
@@ -51,18 +52,14 @@ if archivo:
     if articulo_sel != 'Todos':
         df_filtrado = df_filtrado[df_filtrado['NOMBREARTICULO_VENTA'] == articulo_sel]
 
-    # -----------------------------
-    # 📦 DISTRIBUCIÓN ÓPTIMA
-    # -----------------------------
+    # 📦 DISTRIBUCIÓN
     distribucion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().reset_index()
     distribucion.sort_values(by='PREDICCIONES', ascending=False, inplace=True)
 
     st.subheader("📦 Distribución óptima sugerida")
     st.dataframe(distribucion.head(10))
 
-    # -----------------------------
-    # 📈 COMPARACIÓN DE VALORES
-    # -----------------------------
+    # 📈 COMPARACIÓN PREDICCIONES VS REALES
     st.subheader("📈 Comparación entre valores reales y predicciones")
     fig, ax = plt.subplots()
     ax.scatter(range(len(df_filtrado)), df_filtrado['CANTIDAD'], alpha=0.5, label="Reales", color="blue")
@@ -71,17 +68,33 @@ if archivo:
     ax.legend()
     st.pyplot(fig)
 
-    # -----------------------------
-    # 🧠 IMPORTANCIA DE VARIABLES
-    # -----------------------------
-    import xgboost as xgb
-    fig2, ax2 = plt.subplots()
-    xgb.plot_importance(modelo, ax=ax2, max_num_features=10)
-    st.pyplot(fig2)
+    # 🔥 MAPA DE CALOR
+    st.subheader("🔥 Mapa de calor de correlaciones")
+    fig3, ax3 = plt.subplots(figsize=(10, 6))
+    corr = df_filtrado.select_dtypes(include=[np.number]).corr()
+    sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax3)
+    st.pyplot(fig3)
 
-    # -----------------------------
-    # ⬇️ DESCARGA DE RESULTADO
-    # -----------------------------
+    # 📊 GRÁFICA DE BARRAS
+    st.subheader("📊 Gráfica de barras por tienda")
+    barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().sort_values(ascending=False)
+    st.bar_chart(barras)
+
+    # 📉 GRÁFICA DE LÍNEAS (si hay fechas)
+    if 'FECHA' in df_filtrado.columns:
+        st.subheader("📆 Evolución temporal de predicción vs real")
+        df_linea = df_filtrado.groupby('FECHA')[['CANTIDAD', 'PREDICCIONES']].sum().reset_index()
+        df_linea.set_index('FECHA', inplace=True)
+        st.line_chart(df_linea)
+
+    # 🧠 IMPORTANCIA DE VARIABLES
+    import xgboost as xgb
+    st.subheader("🧠 Variables más importantes para el modelo")
+    fig4, ax4 = plt.subplots()
+    xgb.plot_importance(modelo, ax=ax4, max_num_features=10)
+    st.pyplot(fig4)
+
+    # ⬇️ DESCARGA
     distribucion.to_csv("distribucion_optima.csv", index=False)
     with open("distribucion_optima.csv", "rb") as f:
         st.download_button("⬇️ Descargar CSV de Distribución", f, file_name="distribucion_optima.csv")
