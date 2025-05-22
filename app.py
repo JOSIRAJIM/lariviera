@@ -19,7 +19,9 @@ if archivo:
     X = df.drop(['CANTIDAD', 'TOTAL_LINEA', 'FACTURA', 'UNIDADES'], axis=1, errors='ignore')
     y = df['CANTIDAD']
     modelo = entrenar_o_cargar_modelo(X, y, modelo_path="modelo_venta.pkl", reentrenar=reentrenar)
+    
     predicciones = modelo.predict(X)
+    predicciones = np.round(predicciones).astype(int)  # 🔧 Eliminar decimales
 
     rmse = np.sqrt(mean_squared_error(y, predicciones))
     r2 = r2_score(y, predicciones)
@@ -56,7 +58,7 @@ if archivo:
         df_filtrado = df_filtrado[df_filtrado['NOMBREARTICULO_VENTA'] == articulo_sel]
 
     # 📦 DISTRIBUCIÓN
-    distribucion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().reset_index()
+    distribucion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().round().astype(int).reset_index()
     distribucion.sort_values(by='PREDICCIONES', ascending=False, inplace=True)
 
     st.subheader("📦 Distribución óptima sugerida")
@@ -80,14 +82,14 @@ if archivo:
 
     # 📊 GRÁFICA DE BARRAS
     st.subheader("📊 Gráfica de barras por tienda")
-    barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().sort_values(ascending=False)
+    barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().round().astype(int).sort_values(ascending=False)
     st.bar_chart(barras)
 
     # 📊 Comparación entre Distribución Manual y Predicción del Modelo
     st.subheader("📊 Comparación entre Distribución Manual (UNIDADES) y Predicción del Modelo")
 
     if 'UNIDADES' in df_filtrado.columns:
-        comparacion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])[['UNIDADES', 'PREDICCIONES']].sum().reset_index()
+        comparacion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])[['UNIDADES', 'PREDICCIONES']].sum().round().astype(int).reset_index()
         comparacion['DIFERENCIA'] = comparacion['PREDICCIONES'] - comparacion['UNIDADES']
         comparacion.sort_values(by='DIFERENCIA', ascending=False, inplace=True)
 
@@ -110,7 +112,7 @@ if archivo:
     # 📉 GRÁFICA DE LÍNEAS (si hay fechas)
     if 'FECHA' in df_filtrado.columns:
         st.subheader("📆 Evolución temporal de predicción vs real")
-        df_linea = df_filtrado.groupby('FECHA')[['CANTIDAD', 'PREDICCIONES']].sum().reset_index()
+        df_linea = df_filtrado.groupby('FECHA')[['CANTIDAD', 'PREDICCIONES']].sum().round().astype(int).reset_index()
         df_linea.set_index('FECHA', inplace=True)
         st.line_chart(df_linea)
 
