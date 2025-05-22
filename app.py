@@ -37,6 +37,9 @@ if archivo:
     if 'FECHA' in original.columns:
         df['FECHA'] = pd.to_datetime(original['FECHA'])
 
+    if 'UNIDADES' in original.columns:
+        df['UNIDADES'] = original['UNIDADES']
+
     # 📍 FILTROS LATERALES
     st.sidebar.header("🔍 Filtros")
 
@@ -79,6 +82,30 @@ if archivo:
     st.subheader("📊 Gráfica de barras por tienda")
     barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().sort_values(ascending=False)
     st.bar_chart(barras)
+
+    # 📊 Comparación entre Distribución Manual y Predicción del Modelo
+    st.subheader("📊 Comparación entre Distribución Manual (UNIDADES) y Predicción del Modelo")
+
+    if 'UNIDADES' in df_filtrado.columns:
+        comparacion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])[['UNIDADES', 'PREDICCIONES']].sum().reset_index()
+        comparacion['DIFERENCIA'] = comparacion['PREDICCIONES'] - comparacion['UNIDADES']
+        comparacion.sort_values(by='DIFERENCIA', ascending=False, inplace=True)
+
+        st.write("Top 10 diferencias (Predicción - Manual):")
+        st.dataframe(comparacion.head(10))
+
+        # Gráfico comparativo
+        fig_comp, ax_comp = plt.subplots(figsize=(12, 6))
+        top_diff = comparacion.head(10).set_index('NOMBREARTICULO_VENTA')
+        top_diff[['UNIDADES', 'PREDICCIONES']].plot(kind='bar', ax=ax_comp)
+        ax_comp.set_title("Top 10 Artículos: Unidades Manuales vs Predichas")
+        ax_comp.set_ylabel("Cantidad")
+        ax_comp.set_xlabel("Artículo")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        st.pyplot(fig_comp)
+    else:
+        st.warning("La columna 'UNIDADES' no está disponible en los datos.")
 
     # 📉 GRÁFICA DE LÍNEAS (si hay fechas)
     if 'FECHA' in df_filtrado.columns:
