@@ -7,6 +7,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import cross_val_score
 from procesamiento import cargar_y_preprocesar_datos
 from actualizador_modelo import entrenar_o_cargar_modelo
+import xgboost as xgb
 
 st.set_page_config(page_title="Dashboard de Ventas", layout="wide")
 st.title("📊 Dashboard de Predicción de Ventas")
@@ -19,7 +20,8 @@ if archivo:
     X = df.drop(['CANTIDAD', 'TOTAL_LINEA', 'FACTURA', 'UNIDADES'], axis=1, errors='ignore')
     y = df['CANTIDAD']
     modelo = entrenar_o_cargar_modelo(X, y, modelo_path="modelo_venta.pkl", reentrenar=reentrenar)
-    predicciones = modelo.predict(X)
+    
+    predicciones = modelo.predict(X).round().astype(int)
 
     rmse = np.sqrt(mean_squared_error(y, predicciones))
     r2 = r2_score(y, predicciones)
@@ -57,6 +59,7 @@ if archivo:
 
     # 📦 DISTRIBUCIÓN
     distribucion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().reset_index()
+    distribucion['PREDICCIONES'] = distribucion['PREDICCIONES'].round().astype(int)
     distribucion.sort_values(by='PREDICCIONES', ascending=False, inplace=True)
 
     st.subheader("📦 Distribución óptima sugerida")
@@ -80,7 +83,7 @@ if archivo:
 
     # 📊 GRÁFICA DE BARRAS
     st.subheader("📊 Gráfica de barras por tienda")
-    barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().sort_values(ascending=False)
+    barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().round().astype(int).sort_values(ascending=False)
     st.bar_chart(barras)
 
     # 📊 Comparación entre Distribución Manual y Predicción del Modelo
@@ -88,6 +91,7 @@ if archivo:
 
     if 'UNIDADES' in df_filtrado.columns:
         comparacion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])[['UNIDADES', 'PREDICCIONES']].sum().reset_index()
+        comparacion[['UNIDADES', 'PREDICCIONES']] = comparacion[['UNIDADES', 'PREDICCIONES']].round().astype(int)
         comparacion['DIFERENCIA'] = comparacion['PREDICCIONES'] - comparacion['UNIDADES']
         comparacion.sort_values(by='DIFERENCIA', ascending=False, inplace=True)
 
@@ -111,11 +115,11 @@ if archivo:
     if 'FECHA' in df_filtrado.columns:
         st.subheader("📆 Evolución temporal de predicción vs real")
         df_linea = df_filtrado.groupby('FECHA')[['CANTIDAD', 'PREDICCIONES']].sum().reset_index()
+        df_linea[['CANTIDAD', 'PREDICCIONES']] = df_linea[['CANTIDAD', 'PREDICCIONES']].round().astype(int)
         df_linea.set_index('FECHA', inplace=True)
         st.line_chart(df_linea)
 
     # 🧠 IMPORTANCIA DE VARIABLES
-    import xgboost as xgb
     st.subheader("🧠 Variables más importantes para el modelo")
     fig4, ax4 = plt.subplots()
     xgb.plot_importance(modelo, ax=ax4, max_num_features=10)
