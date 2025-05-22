@@ -34,25 +34,54 @@ if archivo:
     df['NOMBRETIENDA'] = original['NOMBRETIENDA']
     df['NOMBREARTICULO_VENTA'] = original['NOMBREARTICULO_VENTA']
 
-    distribucion = df.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().reset_index()
+    # -----------------------------
+    # 🎛️ FILTROS EN LA BARRA LATERAL
+    # -----------------------------
+    st.sidebar.header("🔍 Filtros")
+
+    tiendas = sorted(df['NOMBRETIENDA'].dropna().unique())
+    articulos = sorted(df['NOMBREARTICULO_VENTA'].dropna().unique())
+
+    tienda_sel = st.sidebar.selectbox("🏪 Selecciona Tienda", ['Todas'] + tiendas)
+    articulo_sel = st.sidebar.selectbox("🧾 Selecciona Artículo", ['Todos'] + articulos)
+
+    df_filtrado = df.copy()
+    if tienda_sel != 'Todas':
+        df_filtrado = df_filtrado[df_filtrado['NOMBRETIENDA'] == tienda_sel]
+    if articulo_sel != 'Todos':
+        df_filtrado = df_filtrado[df_filtrado['NOMBREARTICULO_VENTA'] == articulo_sel]
+
+    # -----------------------------
+    # 📦 DISTRIBUCIÓN ÓPTIMA
+    # -----------------------------
+    distribucion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().reset_index()
     distribucion.sort_values(by='PREDICCIONES', ascending=False, inplace=True)
 
     st.subheader("📦 Distribución óptima sugerida")
     st.dataframe(distribucion.head(10))
 
+    # -----------------------------
+    # 📈 COMPARACIÓN DE VALORES
+    # -----------------------------
     st.subheader("📈 Comparación entre valores reales y predicciones")
     fig, ax = plt.subplots()
-    ax.scatter(range(len(y)), y, alpha=0.5, label="Reales", color="blue")
-    ax.scatter(range(len(predicciones)), predicciones, alpha=0.5, label="Predichos", color="red")
+    ax.scatter(range(len(df_filtrado)), df_filtrado['CANTIDAD'], alpha=0.5, label="Reales", color="blue")
+    ax.scatter(range(len(df_filtrado)), df_filtrado['PREDICCIONES'], alpha=0.5, label="Predichos", color="red")
     ax.set_title("Predicción vs Real")
     ax.legend()
     st.pyplot(fig)
 
+    # -----------------------------
+    # 🧠 IMPORTANCIA DE VARIABLES
+    # -----------------------------
     import xgboost as xgb
     fig2, ax2 = plt.subplots()
     xgb.plot_importance(modelo, ax=ax2, max_num_features=10)
     st.pyplot(fig2)
 
+    # -----------------------------
+    # ⬇️ DESCARGA DE RESULTADO
+    # -----------------------------
     distribucion.to_csv("distribucion_optima.csv", index=False)
     with open("distribucion_optima.csv", "rb") as f:
         st.download_button("⬇️ Descargar CSV de Distribución", f, file_name="distribucion_optima.csv")
