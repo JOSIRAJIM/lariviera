@@ -15,11 +15,24 @@ archivo = st.file_uploader("📁 Sube tu archivo Excel", type=["xlsx"])
 reentrenar = st.checkbox("¿Deseas reentrenar el modelo con los nuevos datos?")
 
 if archivo:
+    # Cargar y preprocesar datos
     df, encoders = cargar_y_preprocesar_datos(archivo)
+
+    # Validar columnas esenciales
+    required_columns = ['CANTIDAD', 'NOMBRETIENDA', 'NOMBREARTICULO_VENTA']
+    missing_cols = [col for col in required_columns if col not in df.columns]
+    if missing_cols:
+        st.error(f"❌ Faltan columnas requeridas después del preprocesamiento: {', '.join(missing_cols)}")
+        st.stop()
+
+    # Separar variables para entrenamiento
     X = df.drop(['CANTIDAD', 'TOTAL_LINEA', 'FACTURA', 'UNIDADES'], axis=1, errors='ignore')
     y = df['CANTIDAD']
+
+    # Entrenar o cargar modelo
     modelo = entrenar_o_cargar_modelo(X, y, modelo_path="modelo_venta.pkl", reentrenar=reentrenar)
 
+    # Predicciones
     predicciones = modelo.predict(X)
     predicciones = np.round(predicciones).astype(int)  # Eliminar decimales
 
@@ -37,10 +50,11 @@ if archivo:
     with col3:
         st.write(f"**R² Cross-Validation:** {cv.mean():.2f} ± {cv.std():.2f}")
 
-    df['PREDICCIONES'] = predicciones
+    # Recuperar columnas originales desde archivo subido
     original = pd.read_excel(archivo)
-    df['NOMBRETIENDA'] = original['NOMBRETIENDA']
-    df['NOMBREARTICULO_VENTA'] = original['NOMBREARTICULO_VENTA']
+    df['PREDICCIONES'] = predicciones
+    df['NOMBRETIENDA'] = original['NOMBRETIENDA'].fillna('Sin Tienda')
+    df['NOMBREARTICULO_VENTA'] = original['NOMBREARTICULO_VENTA'].fillna('Sin Artículo')
 
     if 'FECHA' in original.columns:
         df['FECHA'] = pd.to_datetime(original['FECHA'])
@@ -51,8 +65,9 @@ if archivo:
     # 📍 FILTROS LATERALES
     st.sidebar.header("🔍 Filtros")
 
-    tiendas = sorted(df['NOMBRETIENDA'].dropna().unique())
-    articulos = sorted(df['NOMBREARTICULO_VENTA'].dropna().unique())
+    # Validar y limpiar tiendas/artículos antes de usar
+    tiendas = sorted(df['NOMBRETIENDA'].dropna().astype(str).unique())
+    articulos = sorted(df['NOMBREARTICULO_VENTA'].dropna().astype(str).unique())
 
     tienda_sel = st.sidebar.selectbox("🏪 Selecciona Tienda", ['Todas'] + tiendas)
     articulo_sel = st.sidebar.selectbox("🧾 Selecciona Artículo", ['Todos'] + articulos)
@@ -66,7 +81,6 @@ if archivo:
     # 📦 DISTRIBUCIÓN
     distribucion = df_filtrado.groupby(['NOMBRETIENDA', 'NOMBREARTICULO_VENTA'])['PREDICCIONES'].sum().round().astype(int).reset_index()
     distribucion.sort_values(by='PREDICCIONES', ascending=False, inplace=True)
-
     st.subheader("📦 Distribución óptima sugerida")
     st.dataframe(distribucion.head(10))
 
@@ -81,7 +95,6 @@ if archivo:
 
     # 📊 RANKING DE VARIABLES POR CORRELACIÓN CON 'CANTIDAD'
     st.subheader("📊 Ranking de variables por correlación con 'CANTIDAD'")
-
     df_numeric = df_filtrado.select_dtypes(include=[np.number])
 
     if 'CANTIDAD' in df_numeric.columns:
@@ -93,7 +106,6 @@ if archivo:
 
     # 🔥 MAPA DE CALOR MEJORADO - Solo variables clave
     st.subheader("🔥 Mapa de calor: Variables clave")
-
     columnas_relevantes = [
         'CANTIDAD',
         'UNIDADES',
@@ -101,7 +113,6 @@ if archivo:
         'NOMBREARTICULO_VENTA_cod',
         'MARCAARTICULO_cod'
     ]
-
     cols_existentes = [col for col in columnas_relevantes if col in df_filtrado.columns]
 
     if len(cols_existentes) >= 2:
@@ -139,8 +150,8 @@ if archivo:
 
         # Filtros interactivos adicionales
         st.markdown("### 🔍 Filtro adicional para análisis detallado")
-        tiendas_comp = ['Todas'] + sorted(df_filtrado['NOMBRETIENDA'].unique())
-        articulos_comp = ['Todos'] + sorted(df_filtrado['NOMBREARTICULO_VENTA'].unique())
+        tiendas_comp = ['Todas'] + sorted(df_filtrado['NOMBRETIENDA'].astype(str).unique())
+        articulos_comp = ['Todos'] + sorted(df_filtrado['NOMBREARTICULO_VENTA'].astype(str).unique())
 
         tienda_graf = st.selectbox("Selecciona una tienda para análisis gráfico", tiendas_comp)
         articulo_graf = st.selectbox("Selecciona un artículo para análisis gráfico", articulos_comp)
@@ -151,50 +162,51 @@ if archivo:
         if articulo_graf != 'Todos':
             df_graf = df_graf[df_graf['NOMBREARTICULO_VENTA'] == articulo_graf]
 
-        # Cálculo del porcentaje de diferencia
-        df_graf['DIFERENCIA_PCT'] = (df_graf['DIFERENCIA'] / df_graf['PREDICCIONES']).abs() * 100
-        umbral_pct = 20
+        if not df_graf.empty:
+            # Cálculo del porcentaje de diferencia
+            df_graf['DIFERENCIA_PCT'] = (df_graf['DIFERENCIA'] / df_graf['PREDICCIONES']).abs() * 100
+            umbral_pct = 20
 
-        colors_unidades = ['red' if row['DIFERENCIA_PCT'] > umbral_pct else 'skyblue' for _, row in df_graf.iterrows()]
-        colors_prediccion = ['red' if row['DIFERENCIA_PCT'] > umbral_pct else 'lightgreen' for _, row in df_graf.iterrows()]
+            colors_unidades = ['red' if row['DIFERENCIA_PCT'] > umbral_pct else 'skyblue' for _, row in df_graf.iterrows()]
+            colors_prediccion = ['red' if row['DIFERENCIA_PCT'] > umbral_pct else 'lightgreen' for _, row in df_graf.iterrows()]
 
-        # Gráfico de barras comparativo con alertas
-        st.markdown("### 📊 Comparación: UNIDADES vs PREDICCIONES (con alertas visuales)")
-        fig_comp, ax_comp = plt.subplots(figsize=(12, 6))
+            # Gráfico de barras comparativo con alertas
+            st.markdown("### 📊 Comparación: UNIDADES vs PREDICCIONES (con alertas visuales)")
+            fig_comp, ax_comp = plt.subplots(figsize=(12, 6))
 
-        bar_width = 0.35
-        indices = np.arange(len(df_graf))
+            bar_width = 0.35
+            indices = np.arange(len(df_graf))
 
-        ax_comp.bar(indices, df_graf['UNIDADES'], width=bar_width, label='UNIDADES', color=colors_unidades)
-        ax_comp.bar(indices + bar_width, df_graf['PREDICCIONES'], width=bar_width, label='PREDICCIONES', color=colors_prediccion)
+            ax_comp.bar(indices, df_graf['UNIDADES'], width=bar_width, label='UNIDADES', color=colors_unidades)
+            ax_comp.bar(indices + bar_width, df_graf['PREDICCIONES'], width=bar_width, label='PREDICCIONES', color=colors_prediccion)
 
-        ax_comp.set_title(f"Comparativa Unidades vs Predicciones {' - ' + tienda_graf if tienda_graf != 'Todas' else ''} {' - ' + articulo_graf if articulo_graf != 'Todos' else ''}", fontsize=14)
-        ax_comp.set_ylabel("Cantidad")
-        ax_comp.set_xlabel("Artículo")
-        ax_comp.set_xticks(indices + bar_width / 2)
-        ax_comp.set_xticklabels(df_graf['NOMBREARTICULO_VENTA'], rotation=45)
-        ax_comp.legend()
+            ax_comp.set_title(f"Comparativa Unidades vs Predicciones {' - ' + tienda_graf if tienda_graf != 'Todas' else ''} {' - ' + articulo_graf if articulo_graf != 'Todos' else ''}", fontsize=14)
+            ax_comp.set_ylabel("Cantidad")
+            ax_comp.set_xlabel("Artículo")
+            ax_comp.set_xticks(indices + bar_width / 2)
+            ax_comp.set_xticklabels(df_graf['NOMBREARTICULO_VENTA'], rotation=45)
+            ax_comp.legend()
 
-        ax_comp.axhline(y=0, color='black', linewidth=0.8, linestyle='--')
-        ax_comp.text(0.95, 0.95, f"Diferencia > {umbral_pct}% resaltada", transform=ax_comp.transAxes,
-                     fontsize=10, verticalalignment='top', horizontalalignment='right',
-                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            ax_comp.axhline(y=0, color='black', linewidth=0.8, linestyle='--')
+            ax_comp.text(0.95, 0.95, f"Diferencia > {umbral_pct}% resaltada", transform=ax_comp.transAxes,
+                         fontsize=10, verticalalignment='top', horizontalalignment='right',
+                         bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
-        plt.tight_layout()
-        st.pyplot(fig_comp)
+            plt.tight_layout()
+            st.pyplot(fig_comp)
 
-        # Mostrar tabla filtrada y botón de descarga
-        st.markdown("### 📌 Diferencia entre predicción y unidades:")
-        st.dataframe(df_graf[['NOMBRETIENDA', 'NOMBREARTICULO_VENTA', 'UNIDADES', 'PREDICCIONES', 'DIFERENCIA']])
-
-        csv = df_graf.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="⬇️ Descargar tabla como CSV",
-            data=csv,
-            file_name="comparativa_unidades_predicciones.csv",
-            mime="text/csv"
-        )
-
+            # Tabla y descarga
+            st.markdown("### 📌 Diferencia entre predicción y unidades:")
+            st.dataframe(df_graf[['NOMBRETIENDA', 'NOMBREARTICULO_VENTA', 'UNIDADES', 'PREDICCIONES', 'DIFERENCIA']])
+            csv = df_graf.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="⬇️ Descargar tabla como CSV",
+                data=csv,
+                file_name="comparativa_unidades_predicciones.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("🚫 No hay datos que coincidan con los filtros seleccionados.")
     else:
         st.warning("La columna 'UNIDADES' no está disponible en los datos.")
 
