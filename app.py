@@ -79,13 +79,6 @@ if archivo:
     ax.legend()
     st.pyplot(fig)
 
-    # 🔥 MAPA DE CALOR
-    st.subheader("🔥 Mapa de calor de correlaciones 🔥")
-    fig3, ax3 = plt.subplots(figsize=(10, 6))
-    corr = df_filtrado.select_dtypes(include=[np.number]).corr()
-    sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax3)
-    st.pyplot(fig3)
-
     # 📊 GRÁFICA DE BARRAS
     st.subheader("📊 Gráfica de barras por tienda")
     barras = df_filtrado.groupby('NOMBRETIENDA')['PREDICCIONES'].sum().round().astype(int).sort_values(ascending=False)
