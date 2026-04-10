@@ -13,9 +13,9 @@ def cargar_y_preprocesar_datos(archivo):
     df['MES_FECHA'] = df['FECHA_HH'].dt.month
     df['ANO_FECHA'] = df['FECHA_HH'].dt.year
     df.drop('FECHA_HH', axis=1, inplace=True)
-    print(df.head())
-    df.fillna(0, inplace=True)
-    
+
+    #df.fillna(0, inplace=True)
+     
     label_encoders = {}
     categorical_cols_remaining = df.select_dtypes(include=['object']).columns.tolist()
     for col in categorical_cols_remaining:
