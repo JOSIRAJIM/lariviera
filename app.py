@@ -16,7 +16,7 @@ reentrenar = st.checkbox("¿Deseas reentrenar el modelo con los nuevos datos?")
 
 if archivo:
     df, encoders = cargar_y_preprocesar_datos(archivo)
-    X = df.drop(['CANTIDAD', 'TOTAL_LINEA', 'FACTURA', 'UNIDADES'], axis=1, errors='ignore')
+    X = df.drop(['CANTIDAD', 'TOTAL_LINEA', 'FACTURA', 'UNIDADES'], implace=True, errors='ignore')
     y = df['CANTIDAD']
     modelo = entrenar_o_cargar_modelo(X, y, modelo_path="modelo_venta.pkl", reentrenar=reentrenar)
     
