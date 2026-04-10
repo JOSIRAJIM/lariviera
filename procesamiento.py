@@ -6,7 +6,7 @@ def cargar_y_preprocesar_datos(archivo):
     columns_to_drop = ['TIENDA.1', 'CATEGORIA', 'CENTRO', 'PERIODO', 'CLASE', 'FECHA_TRASLADO']
     unnamed_cols = [col for col in df.columns if 'Unnamed' in str(col)]
     columns_to_drop += unnamed_cols
-    df.drop(columns=columns_to_drop, axis=1, inplace=True, errors='ignore')
+    df.drop(columns=columns_to_drop, inplace=True, errors='ignore')
 
     df['FECHA_HH'] = pd.to_datetime(df['FECHA_HH'], errors='coerce')
     df['DIA_FECHA'] = df['FECHA_HH'].dt.day
